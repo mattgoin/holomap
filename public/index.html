@@ -1,0 +1,270 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Holomap // 3D Planetary Stream Visualizer</title>
+    <script src="https://unpkg.com/deck.gl@8.9.33/dist.min.js"></script>
+    <script src="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js"></script>
+    <link href="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css" rel="stylesheet" />
+    <style>
+        body { margin: 0; padding: 0; background: #000208; overflow: hidden; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        #map { width: 100vw; height: 100vh; }
+        #overlay {
+            position: absolute; top: 20px; left: 20px;
+            color: #00ffcc;
+            text-shadow: 0 0 10px rgba(0, 255, 204, 0.5); pointer-events: none;
+            background: rgba(0, 5, 15, 0.85); padding: 14px 18px;
+            border: 1px solid rgba(0, 255, 204, 0.3);
+            border-left: 4px solid #00ffcc;
+            font-size: 13px; z-index: 10;
+            backdrop-filter: blur(8px);
+            border-radius: 0 6px 6px 0;
+            box-shadow: 0 0 25px rgba(0, 0, 0, 0.7);
+        }
+        .brand-title {
+            font-weight: 800;
+            letter-spacing: 2.5px;
+            font-size: 15px;
+            margin-bottom: 6px;
+            color: #00ffcc;
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .stats-val { color: #fff; font-weight: bold; }
+    </style>
+</head>
+<body>
+    <div id="map"></div>
+    <div id="overlay">
+        <div class="brand-title">
+            <span>🛰️ HOLOMAP // PLEX STREAM RECON</span>
+        </div>
+        <div id="stats">Establishing link with Plex...</div>
+    </div>
+
+    <script>
+        window.onload = function() {
+            const { DeckGL, ArcLayer, ScatterplotLayer, GeoJsonLayer, _GlobeView } = deck;
+
+            let SERVER_LOCATION = [0, 0];
+            let SERVER_NAME = 'Base Station';
+            const COLOR_SEED = Math.random() * 1000000;
+            let data = { points: [] };
+            let timer = 0;
+
+            function getColor(userString) {
+                if (!userString) return [255, 255, 255];
+                let hash = COLOR_SEED;
+                for (let i = 0; i < userString.length; i++) {
+                    hash = userString.charCodeAt(i) + ((hash << 5) - hash);
+                }
+                const r = (hash & 0xFF0000) >> 16;
+                const g = (hash & 0x00FF00) >> 8;
+                const b = (hash & 0x0000FF);
+                return [Math.abs(r) % 135 + 120, Math.abs(g) % 255, Math.abs(b) % 255];
+            }
+
+            class CometArcLayer extends ArcLayer {
+                getShaders() {
+                    const shaders = super.getShaders();
+                    shaders.inject = {
+                        'vs:#decl': `varying float v_progress;`,
+                        'vs:#main-end': `v_progress = geometry.uv.x;`,
+                        'fs:#decl': `
+                            varying float v_progress;
+                            uniform float currentTime;
+                            uniform float tailLength;
+                        `,
+                        'fs:#main-start': `
+                            float speed = 0.15;
+                            float t = fract(currentTime * speed);
+                            float dist = fract(t - v_progress);
+                            if (dist > tailLength) discard;
+                            float alpha = smoothstep(0.0, tailLength, tailLength - dist);
+                            alpha = pow(alpha, 2.0);
+                            gl_FragColor.a *= alpha;
+                        `
+                    };
+                    return shaders;
+                }
+                draw(opts) {
+                    opts.uniforms = {
+                        ...opts.uniforms,
+                        currentTime: this.props.currentTime,
+                        tailLength: 0.4
+                    };
+                    super.draw(opts);
+                }
+            }
+            CometArcLayer.layerName = 'CometArcLayer';
+            CometArcLayer.defaultProps = { ...ArcLayer.defaultProps, currentTime: {type: 'number', value: 0} };
+
+            const deckgl = new DeckGL({
+                container: 'map',
+                views: new _GlobeView({ id: 'globe', controller: true, resolution: 10 }),
+                initialViewState: { longitude: -95, latitude: 38, zoom: 1.5, pitch: 45, bearing: -10 },
+                parameters: {
+                    depthTest: true, cull: true,
+                    clearColor: [0, 2/255, 8/255, 1],
+                    blendFunc: [770, 1, 1, 1],
+                    blendEquation: 0x8006
+                },
+                getTooltip: ({object}) => {
+                    if (!object) return null;
+                    if (object.isServer) {
+                        return {
+                            html: `<div style="background:rgba(0,5,15,0.95);color:#00ffcc;padding:10px 14px;border:1px solid #00ffcc;font-family:monospace;border-radius:4px;">
+                                <div style="font-weight:bold;color:#fff;">BASE STATION</div>
+                                ${SERVER_NAME}
+                               </div>`,
+                            style: { backgroundColor: 'transparent' }
+                        };
+                    }
+                    if (!object.user) return null;
+
+                    const rgb = getColor(object.user);
+                    const userColor = `rgb(${rgb.join(',')})`;
+                    const loc = [object.city, object.country].filter(Boolean).join(', ') || 'Unknown Location';
+                    return {
+                        html: `<div style="background:rgba(0,5,15,0.95);color:${userColor};padding:12px;border:1px solid ${userColor};font-family:monospace;border-radius:4px;box-shadow:0 0 15px rgba(0,0,0,0.8);">
+                            <div style="border-bottom:1px solid ${userColor};margin-bottom:8px;padding-bottom:4px;font-weight:bold;color:#fff;display:flex;justify-content:space-between;">
+                                <span>STREAM RECON</span>
+                                <span style="color:${object.active ? '#00ff66' : '#00ccff'}">${object.active ? '● LIVE' : '○ RECENT'}</span>
+                            </div>
+                            USER    : <span style="color:#fff">${object.user}</span><br/>
+                            TITLE   : <span style="color:#fff">${object.title || 'Unknown'}</span><br/>
+                            LOCATION: <span style="color:#fff">${loc}</span><br/>
+                            CLIENT  : <span style="color:#aaa">${object.device || 'Plex Client'}</span>
+                           </div>`,
+                        style: { backgroundColor: 'transparent' }
+                    };
+                }
+            });
+
+            async function fetchData() {
+                try {
+                    const response = await fetch('/api/map-data');
+                    const rawData = await response.json();
+                    data.points = rawData.points || [];
+                    if (rawData.userLocation && rawData.userLocation.length === 2) {
+                        SERVER_LOCATION = rawData.userLocation;
+                    }
+                    if (rawData.homeName) {
+                        SERVER_NAME = rawData.homeName;
+                    }
+                    const activeCount = data.points.filter(p => p.active).length;
+                    const totalCount = data.points.length;
+                    document.getElementById('stats').innerHTML = `
+                        <span style="color:#00ff66">●</span> LIVE STREAMS: <span class="stats-val">${activeCount}</span> &nbsp;|&nbsp;
+                        <span style="color:#00ccff">○</span> RECENT (24H): <span class="stats-val">${totalCount}</span>
+                    `;
+                    renderLayers();
+                } catch (e) {
+                    console.error('[Holomap] Fetch error:', e);
+                    document.getElementById('stats').innerHTML = `<span style="color:#ff3333">CONNECTION_INTERRUPTED</span>`;
+                }
+            }
+
+            function renderLayers() {
+                const boundaries = new GeoJsonLayer({
+                    id: 'boundaries',
+                    data: 'https://raw.githubusercontent.com/datasets/geo-boundaries-world-110m/master/countries.geojson',
+                    filled: true,
+                    getFillColor: [0, 20, 50, 200],
+                    stroked: true,
+                    getLineColor: [0, 100, 200, 255],
+                    getLineWidth: 1,
+                    lineWidthMinPixels: 1,
+                    opacity: 0.8
+                });
+
+                const states = new GeoJsonLayer({
+                    id: 'states',
+                    data: 'https://raw.githubusercontent.com/PublicaMundi/MappingAPI/master/data/geojson/us-states.json',
+                    filled: false,
+                    stroked: true,
+                    getLineColor: [0, 60, 120, 150],
+                    getLineWidth: 1,
+                    lineWidthMinPixels: 0.5,
+                    opacity: 0.5
+                });
+
+                const arcLayer = new CometArcLayer({
+                    id: 'comet-arcs',
+                    data: data.points,
+                    getSourcePosition: d => d.coords || [0,0],
+                    getTargetPosition: d => SERVER_LOCATION,
+                    getSourceColor: d => [...getColor(d.user), 255],
+                    getTargetColor: d => [...getColor(d.user), 0],
+                    getStrokeWidth: 4,
+                    getHeight: 0.4,
+                    currentTime: timer,
+                    updateTriggers: { currentTime: [timer] }
+                });
+
+                const pointCores = new ScatterplotLayer({
+                    id: 'point-cores',
+                    data: data.points.filter(p => p.active),
+                    getPosition: d => d.coords,
+                    getRadius: 30000,
+                    getFillColor: d => [...getColor(d.user), 255],
+                    pickable: true
+                });
+
+                const historicalPoints = new ScatterplotLayer({
+                    id: 'historical-points',
+                    data: data.points.filter(p => !p.active),
+                    getPosition: d => d.coords,
+                    getRadius: 25000,
+                    getFillColor: d => [...getColor(d.user), 90],
+                    pickable: true
+                });
+
+                const activePoints = data.points.filter(p => p.active);
+                const scatterLayers = [0, 1, 2].map(i => new ScatterplotLayer({
+                    id: `pings-${i}`,
+                    data: activePoints,
+                    getPosition: d => d.coords,
+                    getRadius: d => 30000 + ((timer * 15 + i * 20) % 60) * 1000,
+                    getFillColor: d => {
+                        const rgb = getColor(d.user);
+                        const progress = (timer * 15 + i * 20) % 60;
+                        const opacity = Math.max(0, 150 * (1 - (progress / 60)));
+                        return [...rgb, opacity];
+                    },
+                    updateTriggers: { getRadius: [timer], getFillColor: [timer] }
+                }));
+
+                const serverLayer = new ScatterplotLayer({
+                    id: 'server',
+                    data: [{ position: SERVER_LOCATION, isServer: true }],
+                    getPosition: d => d.position,
+                    getRadius: 35000,
+                    getFillColor: [0, 255, 204, 255],
+                    stroked: true,
+                    lineWidthMinPixels: 2,
+                    getLineColor: [0, 255, 204, 255],
+                    pickable: true
+                });
+
+                deckgl.setProps({
+                    layers: [boundaries, states, arcLayer, pointCores, historicalPoints, ...scatterLayers, serverLayer]
+                });
+            }
+
+            function animate() {
+                timer += 0.5;
+                renderLayers();
+                requestAnimationFrame(animate);
+            }
+
+            // Fast 10-second polling for real-time reactivity
+            setInterval(fetchData, 10000);
+            fetchData();
+            animate();
+        };
+    </script>
+</body>
+</html>

@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  holomap:
+    image: ghcr.io/mattgoin/holomap:latest
+    container_name: holomap
+    restart: unless-stopped
+    ports:
+      - '3005:3005/tcp'
+    environment:
+      - PORT=3005
+      - PLEX_URL=http://your-plex-server:32400
+      - PLEX_TOKEN=your_plex_token_here
+      - HOME_LAT=37.7749
+      - HOME_LON=-122.4194
+      - HOME_NAME=Base Station
+      - POLL_INTERVAL_MS=10000
+      - HISTORY_RETENTION_HOURS=24
+      - TZ=UTC
+    volumes:
+      - ./data:/app/data

@@ -1,0 +1,27 @@
+{
+  "name": "holomap",
+  "version": "1.0.0",
+  "description": "Real-time 3D planetary stream visualizer for Plex Media Server",
+  "main": "server.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node server.js",
+    "dev": "node --watch server.js"
+  },
+  "keywords": [
+    "plex",
+    "stream-map",
+    "globe",
+    "visualization",
+    "3d",
+    "deckgl",
+    "homelab",
+    "self-hosted"
+  ],
+  "author": "Matthew Goin",
+  "license": "MIT",
+  "dependencies": {
+    "axios": "^1.7.9",
+    "express": "^4.21.2"
+  }
+}
