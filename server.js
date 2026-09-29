@@ -187,6 +187,33 @@ async function pollPlexSessions() {
         continue;
       }
 
+      // Rich metadata extraction
+      const thumb = item.thumb || item.parentThumb || item.grandparentThumb || '';
+      const year = item.year || (item.parentIndex ? `S${item.parentIndex}:E${item.index || '1'}` : '');
+      const duration = parseInt(item.duration || '0', 10);
+      const viewOffset = parseInt(item.viewOffset || '0', 10);
+      const progressPercent = duration > 0 ? Math.min(100, Math.round((viewOffset / duration) * 100)) : 0;
+      const playerState = player.state || 'playing';
+      const platform = player.platform || player.product || '';
+      const device = player.device || player.title || 'Plex Device';
+
+      const mediaInfo = (item.Media && item.Media[0]) || {};
+      const videoResolution = mediaInfo.videoResolution
+        ? (mediaInfo.videoResolution === '4k' ? '4K' : `${mediaInfo.videoResolution}p`)
+        : '';
+      const videoCodec = (mediaInfo.videoCodec || '').toUpperCase();
+      const audioCodec = (mediaInfo.audioCodec || '').toUpperCase();
+      const bitrateKbps = mediaInfo.bitrate ? Math.round(mediaInfo.bitrate / 1000) : 0;
+      const bitrate = bitrateKbps > 0 ? `${bitrateKbps} Mbps` : '';
+
+      const transcode = item.TranscodeSession || null;
+      const isTranscode = !!transcode && (transcode.videoDecision === 'transcode' || transcode.audioDecision === 'transcode');
+      const isHw = transcode
+        ? !!(transcode.transcodeHwRequested || transcode.transcodeHwDecoding || transcode.transcodeHwEncoding)
+        : false;
+      const videoDecision = transcode?.videoDecision || 'directplay';
+      const audioDecision = transcode?.audioDecision || 'directplay';
+
       const sessionObj = {
         id: sessionId,
         user,
@@ -196,7 +223,22 @@ async function pollPlexSessions() {
         city: geo.city,
         region: geo.region,
         country: geo.country,
-        device: player.device || player.title || 'Plex Client',
+        device,
+        platform,
+        state: playerState,
+        thumb,
+        year,
+        duration,
+        viewOffset,
+        progressPercent,
+        videoResolution,
+        videoCodec,
+        audioCodec,
+        bitrate,
+        isTranscode,
+        isHw,
+        videoDecision,
+        audioDecision,
         active: true,
         timestamp: now
       };
@@ -206,8 +248,7 @@ async function pollPlexSessions() {
       // Check if this stream exists in history to update or append
       const existingIdx = streamHistory.findIndex(h => h.ip === ip && h.user === user && h.title === fullTitle);
       if (existingIdx >= 0) {
-        streamHistory[existingIdx].timestamp = now;
-        streamHistory[existingIdx].active = true;
+        streamHistory[existingIdx] = { ...sessionObj, active: true, timestamp: now };
       } else {
         streamHistory.unshift({ ...sessionObj, active: true });
       }
@@ -254,17 +295,7 @@ app.get('/api/map-data', (req, res) => {
 
   // Active points first
   for (const s of activeSessionsMap.values()) {
-    points.push({
-      ip: s.ip,
-      coords: s.coords,
-      user: s.user,
-      title: s.title,
-      city: s.city,
-      country: s.country,
-      device: s.device,
-      active: true,
-      timestamp: s.timestamp
-    });
+    points.push({ ...s });
     seen.add(`${s.ip}-${s.user}`);
   }
 
@@ -273,17 +304,7 @@ app.get('/api/map-data', (req, res) => {
     const key = `${h.ip}-${h.user}`;
     if (seen.has(key)) continue;
 
-    points.push({
-      ip: h.ip,
-      coords: h.coords,
-      user: h.user,
-      title: h.title,
-      city: h.city,
-      country: h.country,
-      device: h.device,
-      active: false,
-      timestamp: h.timestamp
-    });
+    points.push({ ...h });
     seen.add(key);
   }
 
@@ -292,6 +313,42 @@ app.get('/api/map-data', (req, res) => {
     homeName: HOME_NAME,
     points
   });
+});
+
+// Secure Poster Proxy (never exposes PLEX_TOKEN to browser)
+app.get('/api/poster', async (req, res) => {
+  const thumbPath = req.query.thumb;
+  if (!thumbPath || typeof thumbPath !== 'string') {
+    return res.status(400).send('Missing thumb path parameter');
+  }
+
+  // Strict check: only allow legitimate Plex photo/library endpoints
+  if (!thumbPath.startsWith('/library/') && !thumbPath.startsWith('/photo/')) {
+    return res.status(403).send('Forbidden thumb path');
+  }
+
+  if (!PLEX_TOKEN) {
+    return res.status(503).send('Plex token unconfigured');
+  }
+
+  try {
+    const targetUrl = `${PLEX_URL}${thumbPath}`;
+    const response = await axios.get(targetUrl, {
+      headers: {
+        'X-Plex-Token': PLEX_TOKEN
+      },
+      responseType: 'stream',
+      timeout: 8000
+    });
+
+    res.set({
+      'Content-Type': response.headers['content-type'] || 'image/jpeg',
+      'Cache-Control': 'public, max-age=86400, immutable'
+    });
+    response.data.pipe(res);
+  } catch (err) {
+    res.status(404).end();
+  }
 });
 
 // Telemetry & Health endpoint

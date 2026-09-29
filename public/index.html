@@ -8,7 +8,7 @@
     <script src="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.js"></script>
     <link href="https://unpkg.com/maplibre-gl@latest/dist/maplibre-gl.css" rel="stylesheet" />
     <style>
-        body { margin: 0; padding: 0; background: #000208; overflow: hidden; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        body { margin: 0; padding: 0; background: #000208; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
         #map { width: 100vw; height: 100vh; }
         #overlay {
             position: absolute; top: 20px; left: 20px;
@@ -19,6 +19,7 @@
             border-left: 4px solid #00ffcc;
             font-size: 13px; z-index: 10;
             backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
             border-radius: 0 6px 6px 0;
             box-shadow: 0 0 25px rgba(0, 0, 0, 0.7);
         }
@@ -33,6 +34,208 @@
             gap: 8px;
         }
         .stats-val { color: #fff; font-weight: bold; }
+
+        /* Deck.gl Tooltip Overrides */
+        .deck-tooltip {
+            background: transparent !important;
+            padding: 0 !important;
+            border: none !important;
+            box-shadow: none !important;
+            pointer-events: none !important;
+        }
+
+        /* Holomap Rich HUD Tooltip Card */
+        .holomap-hud {
+            background: rgba(6, 11, 22, 0.94);
+            backdrop-filter: blur(14px);
+            -webkit-backdrop-filter: blur(14px);
+            border: 1px solid rgba(0, 255, 204, 0.4);
+            border-radius: 8px;
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.85), 0 0 25px rgba(0, 255, 204, 0.15);
+            display: flex;
+            max-width: 360px;
+            min-width: 280px;
+            overflow: hidden;
+            color: #e0e6ed;
+            pointer-events: none;
+        }
+
+        .hud-poster {
+            width: 82px;
+            min-width: 82px;
+            background: #03060c;
+            position: relative;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .hud-poster img {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+            display: block;
+        }
+
+        .hud-content {
+            flex: 1;
+            padding: 10px 14px;
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            min-width: 0;
+        }
+
+        .hud-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            gap: 8px;
+            font-size: 11px;
+            font-weight: 700;
+        }
+
+        .hud-user {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            color: #ffffff;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+
+        .hud-status-badge {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 9.5px;
+            font-weight: 800;
+            letter-spacing: 0.5px;
+            white-space: nowrap;
+        }
+
+        .hud-status-badge.live {
+            background: rgba(0, 255, 102, 0.15);
+            color: #00ff66;
+            border: 1px solid rgba(0, 255, 102, 0.5);
+            animation: hud-pulse 2s infinite;
+        }
+
+        .hud-status-badge.paused {
+            background: rgba(255, 170, 0, 0.15);
+            color: #ffaa00;
+            border: 1px solid rgba(255, 170, 0, 0.5);
+        }
+
+        .hud-status-badge.recent {
+            background: rgba(0, 204, 255, 0.15);
+            color: #00ccff;
+            border: 1px solid rgba(0, 204, 255, 0.4);
+        }
+
+        @keyframes hud-pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.5; }
+        }
+
+        .hud-title {
+            font-size: 13px;
+            font-weight: 700;
+            color: #ffffff;
+            line-height: 1.3;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            display: -webkit-box;
+            -webkit-line-clamp: 2;
+            -webkit-box-orient: vertical;
+        }
+
+        .hud-year {
+            font-weight: 400;
+            color: #8899aa;
+            font-size: 11px;
+            margin-left: 4px;
+        }
+
+        .hud-badges {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 4px;
+            margin-top: 2px;
+        }
+
+        .badge {
+            font-size: 9.5px;
+            font-weight: 700;
+            padding: 2px 5px;
+            border-radius: 3px;
+            text-transform: uppercase;
+            letter-spacing: 0.3px;
+        }
+
+        .badge-stream.direct {
+            background: rgba(0, 204, 120, 0.15);
+            color: #00ff88;
+            border: 1px solid rgba(0, 204, 120, 0.4);
+        }
+
+        .badge-stream.transcode {
+            background: rgba(255, 153, 0, 0.15);
+            color: #ffaa00;
+            border: 1px solid rgba(255, 153, 0, 0.4);
+        }
+
+        .badge-tech {
+            background: rgba(255, 255, 255, 0.08);
+            color: #cbd5e1;
+            border: 1px solid rgba(255, 255, 255, 0.12);
+        }
+
+        .badge-bitrate {
+            background: rgba(0, 204, 255, 0.1);
+            color: #38bdf8;
+            border: 1px solid rgba(0, 204, 255, 0.3);
+        }
+
+        .hud-progress-wrap {
+            margin-top: 4px;
+        }
+
+        .hud-progress-track {
+            width: 100%;
+            height: 4px;
+            background: rgba(255, 255, 255, 0.1);
+            border-radius: 2px;
+            overflow: hidden;
+        }
+
+        .hud-progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #00ffcc, #00ff66);
+            border-radius: 2px;
+            box-shadow: 0 0 6px #00ffcc;
+        }
+
+        .hud-progress-meta {
+            display: flex;
+            justify-content: space-between;
+            font-size: 9.5px;
+            color: #94a3b8;
+            margin-top: 3px;
+            font-variant-numeric: tabular-nums;
+        }
+
+        .hud-footer {
+            border-top: 1px solid rgba(255, 255, 255, 0.08);
+            padding-top: 5px;
+            margin-top: 2px;
+            font-size: 10px;
+            color: #94a3b8;
+            display: flex;
+            flex-direction: column;
+            gap: 2px;
+        }
     </style>
 </head>
 <body>
@@ -45,6 +248,28 @@
     </div>
 
     <script>
+        function escapeHtml(str) {
+            if (!str) return '';
+            return String(str)
+                .replace(/&/g, '&amp;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+                .replace(/"/g, '&quot;')
+                .replace(/'/g, '&#39;');
+        }
+
+        function formatTime(ms) {
+            if (!ms || isNaN(ms)) return '0:00';
+            const totalSecs = Math.floor(ms / 1000);
+            const hrs = Math.floor(totalSecs / 3600);
+            const mins = Math.floor((totalSecs % 3600) / 60);
+            const secs = totalSecs % 60;
+            if (hrs > 0) {
+                return `${hrs}:${mins < 10 ? '0' : ''}${mins}:${secs < 10 ? '0' : ''}${secs}`;
+            }
+            return `${mins}:${secs < 10 ? '0' : ''}${secs}`;
+        }
+
         window.onload = function() {
             const { DeckGL, ArcLayer, ScatterplotLayer, GeoJsonLayer, _GlobeView } = deck;
 
@@ -115,10 +340,14 @@
                     if (!object) return null;
                     if (object.isServer) {
                         return {
-                            html: `<div style="background:rgba(0,5,15,0.95);color:#00ffcc;padding:10px 14px;border:1px solid #00ffcc;font-family:monospace;border-radius:4px;">
-                                <div style="font-weight:bold;color:#fff;">BASE STATION</div>
-                                ${SERVER_NAME}
-                               </div>`,
+                            html: `
+                            <div class="holomap-hud" style="border-left: 3px solid #00ffcc; padding: 12px 16px; flex-direction: column; gap: 4px;">
+                                <div class="hud-header">
+                                    <span class="hud-status-badge live" style="background: rgba(0,255,204,0.15); color: #00ffcc; border-color: #00ffcc;">● BASE STATION</span>
+                                </div>
+                                <div class="hud-title" style="font-size: 14px; color: #fff;">${escapeHtml(SERVER_NAME)}</div>
+                                <div style="font-size: 11px; color: #8899aa;">Central Plex Host Origin Node</div>
+                            </div>`,
                             style: { backgroundColor: 'transparent' }
                         };
                     }
@@ -126,18 +355,88 @@
 
                     const rgb = getColor(object.user);
                     const userColor = `rgb(${rgb.join(',')})`;
-                    const loc = [object.city, object.country].filter(Boolean).join(', ') || 'Unknown Location';
-                    return {
-                        html: `<div style="background:rgba(0,5,15,0.95);color:${userColor};padding:12px;border:1px solid ${userColor};font-family:monospace;border-radius:4px;box-shadow:0 0 15px rgba(0,0,0,0.8);">
-                            <div style="border-bottom:1px solid ${userColor};margin-bottom:8px;padding-bottom:4px;font-weight:bold;color:#fff;display:flex;justify-content:space-between;">
-                                <span>STREAM RECON</span>
-                                <span style="color:${object.active ? '#00ff66' : '#00ccff'}">${object.active ? '● LIVE' : '○ RECENT'}</span>
+                    const loc = [object.city, object.region, object.country].filter(Boolean).join(', ') || 'Unknown Location';
+                    const clientStr = [object.platform, object.device].filter(Boolean).join(' • ') || object.device || 'Plex Client';
+
+                    // Playback status badge
+                    let statusClass = 'recent';
+                    let statusText = '○ 24H RECENT';
+                    if (object.active) {
+                        if (object.state === 'paused') {
+                            statusClass = 'paused';
+                            statusText = '⏸ PAUSED';
+                        } else {
+                            statusClass = 'live';
+                            statusText = '● PLAYING';
+                        }
+                    }
+
+                    // Transcode vs Direct Play badge
+                    let transcodeBadge = '';
+                    if (object.isTranscode) {
+                        transcodeBadge = `<span class="badge badge-stream transcode">⚙️ TRANSCODE ${object.isHw ? '(HW)' : ''}</span>`;
+                    } else {
+                        transcodeBadge = `<span class="badge badge-stream direct">⚡ DIRECT PLAY</span>`;
+                    }
+
+                    // Quality & Codec badges
+                    const resBadge = object.videoResolution ? `<span class="badge badge-tech">${escapeHtml(object.videoResolution)}</span>` : '';
+                    const codecBadge = object.videoCodec ? `<span class="badge badge-tech">${escapeHtml(object.videoCodec)}${object.audioCodec ? ' / ' + escapeHtml(object.audioCodec) : ''}</span>` : '';
+                    const bitrateBadge = object.bitrate ? `<span class="badge badge-bitrate">${escapeHtml(object.bitrate)}</span>` : '';
+
+                    // Progress bar
+                    let progressHtml = '';
+                    if (object.active && object.duration > 0) {
+                        const percent = Math.min(100, Math.max(0, object.progressPercent || 0));
+                        progressHtml = `
+                        <div class="hud-progress-wrap">
+                            <div class="hud-progress-track">
+                                <div class="hud-progress-fill" style="width: ${percent}%;"></div>
                             </div>
-                            USER    : <span style="color:#fff">${object.user}</span><br/>
-                            TITLE   : <span style="color:#fff">${object.title || 'Unknown'}</span><br/>
-                            LOCATION: <span style="color:#fff">${loc}</span><br/>
-                            CLIENT  : <span style="color:#aaa">${object.device || 'Plex Client'}</span>
-                           </div>`,
+                            <div class="hud-progress-meta">
+                                <span>${formatTime(object.viewOffset)} / ${formatTime(object.duration)}</span>
+                                <span>${percent}%</span>
+                            </div>
+                        </div>`;
+                    }
+
+                    // Poster artwork
+                    let posterHtml = '';
+                    if (object.thumb) {
+                        posterHtml = `
+                        <div class="hud-poster">
+                            <img src="/api/poster?thumb=${encodeURIComponent(object.thumb)}" alt="Poster" onerror="this.parentElement.style.display='none'"/>
+                        </div>`;
+                    }
+
+                    return {
+                        html: `
+                        <div class="holomap-hud" style="border-color: ${userColor};">
+                            ${posterHtml}
+                            <div class="hud-content">
+                                <div class="hud-header">
+                                    <span class="hud-user">
+                                        <span style="color: ${userColor}; font-size: 13px;">●</span> ${escapeHtml(object.user)}
+                                    </span>
+                                    <span class="hud-status-badge ${statusClass}">${statusText}</span>
+                                </div>
+                                <div class="hud-title">
+                                    ${escapeHtml(object.title || 'Unknown Media')}
+                                    ${object.year ? `<span class="hud-year">(${escapeHtml(object.year)})</span>` : ''}
+                                </div>
+                                <div class="hud-badges">
+                                    ${transcodeBadge}
+                                    ${resBadge}
+                                    ${codecBadge}
+                                    ${bitrateBadge}
+                                </div>
+                                ${progressHtml}
+                                <div class="hud-footer">
+                                    <span>🖥️ ${escapeHtml(clientStr)}</span>
+                                    <span>📍 ${escapeHtml(loc)}</span>
+                                </div>
+                            </div>
+                        </div>`,
                         style: { backgroundColor: 'transparent' }
                     };
                 }
@@ -201,6 +500,7 @@
                     getStrokeWidth: 4,
                     getHeight: 0.4,
                     currentTime: timer,
+                    pickable: true,
                     updateTriggers: { currentTime: [timer] }
                 });
 
